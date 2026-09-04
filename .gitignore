@@ -1,0 +1,19 @@
+# NEVER commit secrets
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+node_modules/
+*.log
+
+# evidence এর log ফাইল commit হতে দাও
+!scenario-*/evidence/*.log
+
+# scenario-b db dump (screenshot ই প্রমাণ, dump commit করব না)
+scenario-b/evidence/*.sql
+
+# .env.example commit hobe (eita udahoron, asol secret na)
+!.env.example
+GUIDE
+RUNBOOK.md
