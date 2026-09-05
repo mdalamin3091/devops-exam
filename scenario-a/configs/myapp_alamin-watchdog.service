@@ -1,0 +1,7 @@
+[Unit]
+Description=Watchdog for myapp_alamin
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/myapp_alamin-watchdog.sh
+SyslogIdentifier=myapp_alamin-watchdog
