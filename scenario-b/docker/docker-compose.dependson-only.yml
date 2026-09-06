@@ -1,0 +1,32 @@
+# Task 26 — icche kore kharap version.
+# shudhu depends_on ache, postgres er healthcheck nai.
+# postgres uthte koyek second lage, totokkhone app connect korte giye crash korbe.
+services:
+  app:
+    build:
+      context: ../app
+      dockerfile: ../docker/Dockerfile
+    image: notes-api_alamin:v1
+    ports:
+      - "30103:3000"
+    environment:
+      PORT: 3000
+      PGHOST: postgres
+      PGUSER: notes
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: notesdb
+    depends_on:
+      - postgres          # shudhu container start howa porjonto opekkha kore
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: notesdb
+    volumes:
+      - pgdata_bad:/var/lib/postgresql/data
+
+volumes:
+  pgdata_bad:

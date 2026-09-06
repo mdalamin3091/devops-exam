@@ -1,0 +1,62 @@
+# 4 ta service. amar port block: app 30103, prometheus 30190, grafana 30191.
+# postgres baire khulini — dorkar nai, ar conflict-o hobe na.
+# password shudhu .env theke ashe, kothao lekha nai.
+services:
+  app:
+    build:
+      context: ../app
+      dockerfile: ../docker/Dockerfile
+    image: notes-api_alamin:v1
+    ports:
+      - "30103:3000"
+    environment:
+      PORT: 3000
+      APP_VERSION: v1
+      PGHOST: postgres
+      PGUSER: notes
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: notesdb
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: notesdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notesdb"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "30190:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on: [app]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "30191:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafanadata:/var/lib/grafana
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  grafanadata:
