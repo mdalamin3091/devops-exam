@@ -1,0 +1,21 @@
+# NAIVE single-stage build — icche kore kharap bhabe lekha (Task 22)
+# somossa: bhari Debian image, build tool, dev package, root user, healthcheck nai
+FROM node:20
+
+WORKDIR /app
+
+# ei tool gulo app chalate lage na, tobu image e dhuke jachhe
+RUN apt-get update && apt-get install -y \
+      build-essential python3 git curl vim procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# puro folder copy — test, config, sob
+COPY . .
+
+# dev package soho sob install
+RUN npm install
+
+EXPOSE 3000
+
+# root hisebe cholbe
+CMD ["node", "src/server.js"]
