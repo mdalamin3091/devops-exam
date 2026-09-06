@@ -68,3 +68,16 @@ restart হলে compose-এর healthcheck আর কাজে আসে ন�
 `password authentication failed` আসছিল — কারণ `POSTGRES_PASSWORD` শুধু **প্রথমবার**
 data folder তৈরির সময় কাজ করে, volume আগে থেকে থাকলে পুরানো password-ই থাকে।
 `docker compose down -v` দিয়ে volume মুছে আবার তুলতে হয়েছে।
+
+## Task 27 — `-v` flag কী করল
+
+- `docker compose down` → শুধু container মুছে, **volume রেখে দেয়**।
+  `docker volume ls` এ `notes_alamin_pgdata` তখনো ছিল, তাই `up` করার পর ৫০,০০০ note
+  ঠিকই ফিরে এসেছে।
+- `docker compose down -v` → named volume-ও মুছে ফেলে। Postgres-এর সব data ওই
+  volume-এ থাকে, তাই `up` করার পর database একদম খালি — `/api/stats` কিছুই দেয়নি।
+
+**Recovery:** `down -v` দেওয়ার আগে `pg_dump -U notes notesdb > notes-backup.sql`
+দিয়ে backup নিয়ে রেখেছিলাম। volume মুছে যাওয়ার পর
+`psql -U notes -d notesdb < notes-backup.sql` দিয়ে schema আর data দুইটাই ফিরিয়ে
+এনেছি, `/api/stats` আবার আগের সংখ্যা দেখাচ্ছে।
