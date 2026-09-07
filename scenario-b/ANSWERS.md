@@ -162,13 +162,20 @@ tenant মাত্র ৫টা, কিন্তু user id বা note id labe
 Node single-threaded হলেও `await`-এর সময় অন্য request ঢুকে পড়ে। রিপোর্ট করি
 `res.on('finish')`-এ, তখন ওই request-এর সব query শেষ (`b3-task29-metrics.png`)।
 
-**N+1 প্রমাণ:** `/api/notes?limit=20` এ traffic পাঠানোর পর —
+**N+1 প্রমাণ:** `/api/notes?limit=20` এ একটা request পাঠানোর পর —
 
 ```
-db_queries_per_request_sum{route="/api/notes"} / db_queries_per_request_count{route="/api/notes"}  ≈ 21
+db_queries_per_request_sum{route="/api/notes"}   22
+db_queries_per_request_count{route="/api/notes"}  1
+db_queries_per_request_sum{route="/api/stats"}    1
+db_queries_per_request_count{route="/api/stats"}  1
 ```
 
-২১ = ১টা note query + প্রতি note-এর জন্য ১টা করে tag query × ২০। `/api/stats`-এ
-একই হিসাব ১-২ দেয়, তাই সমস্যা route-টা নির্দিষ্ট করে দেখানো যায়
-(`b3-task29-n-plus-one.png`)। limit বাড়ালে query সংখ্যাও সমান তালে বাড়ে —
-এটাই N+1-এর স্বাক্ষর।
+মানে `/api/notes`-এ এক request = **২২টা query**, `/api/stats`-এ **১টা**।
+২২ = ১ `tenant_lookup` (প্রথমবার, পরে cache-এ) + ১ `list_notes` +
+২০টা `tags_for_note` — প্রতি note-এর জন্য একটা করে। tenant cache হয়ে যাওয়ার
+পরের request-গুলোতে ২১ হয়।
+
+`limit` বাড়ালে query সংখ্যাও সমান তালে বাড়ে — এটাই N+1-এর স্বাক্ষর।
+ঠিক করতে হলে ২০টা আলাদা query-র বদলে একটা `WHERE note_id = ANY($1)` চালাতে হত
+(`b3-task29-n-plus-one.png`)।
