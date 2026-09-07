@@ -81,3 +81,57 @@ data folder তৈরির সময় কাজ করে, volume আগে �
 দিয়ে backup নিয়ে রেখেছিলাম। volume মুছে যাওয়ার পর
 `psql -U notes -d notesdb < notes-backup.sql` দিয়ে schema আর data দুইটাই ফিরিয়ে
 এনেছি, `/api/stats` আবার আগের সংখ্যা দেখাচ্ছে।
+
+## Task 28a — exit 137
+
+- **যা করে বানালাম:** `docker run --memory=50m python:3-alpine python -c "x=[0]*100000000"`
+- **উপসর্গ:** container সাথে সাথে মরে গেল, exit code 137
+- **যে কমান্ডে ধরা পড়ল:** `docker inspect --format='{{.State.OOMKilled}}'` → `true`,
+  আর `dmesg` এ kernel-এর `Out of memory: Killed process` লাইন
+- **মানে:** 137 = 128 + 9 → SIGKILL। সাথে `OOMKilled: true` মানে kernel-এর OOM
+  killer মেরেছে, memory limit পার করায়। (143 = 128 + 15 = SIGTERM — কেউ ভদ্রভাবে
+  থামতে বলেছে, সেটা আলাদা জিনিস।)
+- **ঠিক করা:** limit বাড়ানো, নাহলে app কেন এত memory নিচ্ছে সেটা দেখা
+
+> exam-এ `deploy: resources: limits:` লেখা ছিল, কিন্তু plain `docker compose up`-এ
+> `deploy:` block **ignore হয়** — ওটা শুধু Swarm-এ কাজ করে (বা `--compatibility` দিলে)।
+> Compose-এ limit দিতে হলে `mem_limit:` লাগে। তাই `docker run --memory=50m` দিয়ে
+> দেখিয়েছি।
+
+## Task 28b — service নামে DB পাওয়া যায় না, IP দিয়ে যায়
+
+- **যা করে বানালাম:** `docker run` দিয়ে আলাদা container চালিয়েছি, সেটা default
+  `bridge` network-এ গেছে; postgres আছে compose-এর নিজের network-এ
+- **উপসর্গ:** `getent hosts postgres` কিছুই দেয় না, কিন্তু `ping <IP>` কাজ করে
+- **যে কমান্ডে ধরা পড়ল:**
+  `docker inspect <c> --format '{{json .NetworkSettings.Networks}}' | jq` —
+  দুই container দুই network-এ
+- **মানে:** Docker-এর built-in DNS শুধু **user-defined network**-এ service নাম
+  resolve করে। পুরানো default `bridge` network-এ DNS-ই নাই
+- **ঠিক করা:** `docker network connect notes_alamin_default lonely_alamin` — এরপর
+  নাম কাজ করে
+
+## Task 28c — mount করার পরে folder খালি
+
+- **যা করে বানালাম:** `./empty-folder:/app/node_modules`
+- **উপসর্গ:** app চালু হয় না, log-এ `Cannot find module 'express'`;
+  `ls /app/node_modules` খালি
+- **যে কমান্ডে ধরা পড়ল:** `docker inspect --format '{{json .Mounts}}' | jq` —
+  ওখানে bind mount টা দেখা যায়
+- **মানে:** bind mount ওই path-এ image-এ যা ছিল তা **ঢেকে দেয়**, মেশায় না
+- **named volume আলাদা কীভাবে:** named volume **প্রথমবার তৈরি হওয়ার সময়** image-এর
+  ওই folder-এর ফাইলগুলো volume-এ কপি করে নেয়, তাই node_modules খালি হত না।
+  কিন্তু পরে image বদলালেও volume পুরানো ফাইল ধরে রাখে — সেটা আবার আরেক ধরনের বিভ্রান্তি
+- **ঠিক করা:** override ছাড়া `docker compose up -d --force-recreate app`
+
+## Task 28d — port publish করা তবু connection refused
+
+- **যা করে বানালাম:** `BIND_HOST=127.0.0.1` দিয়ে app চালানো
+- **উপসর্গ:** `docker ps` এ `0.0.0.0:30103->3000/tcp` দেখাচ্ছে, তবু host থেকে
+  `curl localhost:30103` → connection refused
+- **যে কমান্ডে ধরা পড়ল:** container-এর ভিতর থেকে
+  `node -e "fetch('http://127.0.0.1:3000/healthz')"` কাজ করে — মানে app চলছে,
+  শুধু বাইরের interface-এ শোনে না
+- **মানে:** container-এর ভিতরে `127.0.0.1` মানে **container-এর নিজের** loopback।
+  Docker-এর port forward container-এর eth0-তে আসে, loopback-এ না
+- **ঠিক করা:** `0.0.0.0` তে listen করানো
