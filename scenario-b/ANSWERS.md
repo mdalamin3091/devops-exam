@@ -139,3 +139,80 @@ data folder তৈরির সময় কাজ করে, volume আগে �
 ---
 
 # B3
+
+## Task 30 — Prometheus scrape আর PromQL
+
+**Target UP:** `prometheus.yml`-এ `targets: ['app:3000']` — service নাম আর
+**container port**। `localhost:30103` লিখলে কাজ করত না: prometheus container-এর
+ভিতরে `localhost` মানে prometheus নিজে, আর 30103 হলো host-এর port।
+Scrape যায় compose network-এর ভিতর দিয়ে (Task 28b-র ঠিক উল্টা দিক — ওখানে DNS
+ছিল না, এখানে আছে)।
+
+```
+$ curl -s 'localhost:30190/api/v1/query?query=up' | jq ...
+prometheus  localhost:9090  up=1
+notes-api   app:3000        up=1
+```
+(`b3-task30-targets-up.png`)
+
+**Request rate — Counter-এ `rate()`:**
+
+| route | req/s |
+|---|---|
+| `/metrics` | 0.20 |
+| `/api/notes` | 0.164 |
+| `/api/stats` | 0.164 |
+| `/healthz` | 0.073 |
+
+`/metrics` ঠিক **0.2 req/s** — মানে সেকেন্ডে ০.২ বার = **৫ সেকেন্ডে ১ বার**।
+এটাই `scrape_interval: 5s`-এর প্রমাণ, Prometheus নিজেই নিজের scrape metric-এ
+ধরা পড়েছে। Counter-এর কাঁচা value দেখা অর্থহীন — ওটা শুধু বাড়ে আর app restart-এ
+0 হয়ে যায়; `rate()` per-second হার দেয় আর reset নিজে সামলায়
+(`b3-task30-promql-rate.png`)।
+
+**p95 — Histogram-এ `histogram_quantile()`:**
+
+```
+/healthz     p95 = 0.023 s
+/metrics     p95 = 0.512 s
+/api/notes   p95 = 2.5 s
+/api/stats   p95 = 2.5 s
+/            p95 = NaN
+```
+
+`/api/notes` আর `/api/stats` দুইটাই ২.৫ সেকেন্ড — দুইটাই ধীর, দুইটার কারণ আলাদা।
+`/api/notes` ২১টা query চালায় (N+1), আর `/api/stats` `tags.note_id`-তে index না
+থাকায় পুরো join scan করে। মানে p95 শুধু বলে **কোথায়** ধীর, **কেন** ধীর সেটা
+`db_queries_per_request` আর `db_query_duration_seconds` মিলিয়ে বুঝতে হয়।
+
+২.৫ সংখ্যাটা আমার bucket-এর একটা সীমানা (`... 1, 2.5, 5, 10`)। histogram
+bucket-এর ভিতরে interpolate করে, তাই p95-এর সূক্ষ্মতা bucket যতটুকু, ততটুকুই —
+আসল সময় ১ থেকে ২.৫ সেকেন্ডের মধ্যে কোথাও। `/` এ `NaN` কারণ ওই window-এ
+কোনো request-ই যায়নি, ভাগ করার মতো কিছু নাই।
+
+**N+1 এখন PromQL-এ** (২৯-এ হাতে `_sum ÷ _count` করেছিলাম):
+
+```
+rate(db_queries_per_request_sum[5m]) / rate(db_queries_per_request_count[5m])
+  /api/notes  21 query/request
+  /api/stats   1 query/request
+
+sum(rate(db_query_duration_seconds_count[5m])) by (query_name)
+  tags_for_note   2.712 /s
+  list_notes      0.136 /s
+  stats           0.136 /s
+  tenant_lookup   0 /s
+```
+
+`2.712 ÷ 0.136 = ২০` — ঠিক ২০ গুণ, কারণ `limit=20`। এক `list_notes`-এর
+বিপরীতে ২০টা `tags_for_note`। `tenant_lookup` শূন্য কারণ tenant একবার cache-এ
+ঢোকার পর আর query হয় না — সেই জন্যই ২৯-এ প্রথম request-এ ২২ ছিল, এখন ২১
+(`b3-task30-nplus-one-promql.png`)।
+
+**যেখানে আটকানো সহজ:**
+- `_bucket` suffix বাদ দিলে `histogram_quantile` কিছুই ফেরত দেয় না
+- `by (le, route)`-এ `le` বাদ দিলে `NaN`
+- `rate()`-এর window scrape_interval-এর অন্তত ৪ গুণ হতে হয়। 5s scrape-এ `[1m]`
+  = ১২টা point, নিরাপদ; `[10s]` দিলে point কম পড়ে ফাঁকা result আসে
+- `X_sum / X_count` (rate ছাড়া) দিলে process চালু হওয়ার পর থেকে **সব সময়ের** গড়,
+  সমস্যা থেমে গেলেও সংখ্যা নামত না
