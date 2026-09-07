@@ -135,3 +135,40 @@ data folder তৈরির সময় কাজ করে, volume আগে �
 - **মানে:** container-এর ভিতরে `127.0.0.1` মানে **container-এর নিজের** loopback।
   Docker-এর port forward container-এর eth0-তে আসে, loopback-এ না
 - **ঠিক করা:** `0.0.0.0` তে listen করানো
+
+---
+
+# B3
+
+## Task 29 — কোন metric, কেন এই type
+
+| Metric | Type | কেন এই type |
+|---|---|---|
+| `http_requests_total` | Counter | শুধু বাড়ে। rate() দিয়ে req/s বের হয় |
+| `http_request_duration_seconds` | Histogram | bucket-এ ভাগ করা থাকে, তাই `histogram_quantile()` দিয়ে p95/p99 পাওয়া যায় |
+| `db_query_duration_seconds` | Histogram | কোন query ধীর, সেটা `query_name` label দিয়ে আলাদা করা যায় |
+| `db_queries_per_request` | Histogram | এক request-এ কয়টা query — **N+1 এখানেই ধরা পড়ে** |
+| `db_rows_returned` | Histogram | `?limit=50000` দিলে এখানে 50000 bucket-এ পড়ে |
+| `http_requests_in_flight` | Gauge | এই মুহূর্তের সংখ্যা, উপরে-নিচে দুইদিকেই যায় |
+
+**Label-এ route pattern, আসল URL না।** `res.on('finish')`-এ
+`req.route.path` নিচ্ছি, তাই label হয় `/api/notes/:id` — `/api/notes/48213` না।
+আসল URL দিলে ৫০,০০০ note-এর জন্য ৫০,০০০ time series হত, Prometheus-এর memory
+শেষ। এটাই **high cardinality** সমস্যা। একই কারণে `tenant` label রাখা নিরাপদ —
+tenant মাত্র ৫টা, কিন্তু user id বা note id label-এ দেওয়া যেত না।
+
+**গণনা `req` object-এ রাখা, module-এর global variable-এ না।** `req.dbQueryCount`
+প্রতি request-এর নিজের। global রাখলে ২০ জন একসাথে request করলে গণনা মিশে যেত —
+Node single-threaded হলেও `await`-এর সময় অন্য request ঢুকে পড়ে। রিপোর্ট করি
+`res.on('finish')`-এ, তখন ওই request-এর সব query শেষ (`b3-task29-metrics.png`)।
+
+**N+1 প্রমাণ:** `/api/notes?limit=20` এ traffic পাঠানোর পর —
+
+```
+db_queries_per_request_sum{route="/api/notes"} / db_queries_per_request_count{route="/api/notes"}  ≈ 21
+```
+
+২১ = ১টা note query + প্রতি note-এর জন্য ১টা করে tag query × ২০। `/api/stats`-এ
+একই হিসাব ১-২ দেয়, তাই সমস্যা route-টা নির্দিষ্ট করে দেখানো যায়
+(`b3-task29-n-plus-one.png`)। limit বাড়ালে query সংখ্যাও সমান তালে বাড়ে —
+এটাই N+1-এর স্বাক্ষর।
