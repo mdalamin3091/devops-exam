@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: PROM              # dashboard JSON e ei uid diyei panel gulo datasource khoje
+    access: proxy
+    # compose network er vitore service naam. localhost:30190 dile kaj korto na —
+    # grafana container er vitore localhost mane grafana nije.
+    url: http://prometheus:9090
+    isDefault: true
