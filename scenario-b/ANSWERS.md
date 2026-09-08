@@ -216,3 +216,44 @@ sum(rate(db_query_duration_seconds_count[5m])) by (query_name)
   = ১২টা point, নিরাপদ; `[10s]` দিলে point কম পড়ে ফাঁকা result আসে
 - `X_sum / X_count` (rate ছাড়া) দিলে process চালু হওয়ার পর থেকে **সব সময়ের** গড়,
   সমস্যা থেমে গেলেও সংখ্যা নামত না
+## Task 32 — Grafana dashboard
+
+Dashboard **file থেকে provision করা**, UI-তে হাতে বানানো না:
+
+```
+docker/grafana/provisioning/datasources/prometheus.yml   → url: http://prometheus:9090, uid: PROM
+docker/grafana/provisioning/dashboards/dashboards.yml    → /var/lib/grafana/dashboards থেকে load
+docker/grafana/dashboards/notes.json                     → ৯টা panel
+```
+
+UI-তে বানালে dashboard শুধু `grafanadata` volume-এর ভিতরে থাকত — volume গেলে
+dashboard শেষ, আর repo দেখে কেউ প্রমাণ পেত না। File থেকে দিলে dashboard-ও code,
+git-এ থাকে, container নতুন করে বানালেও ফিরে আসে। Grafana নিজেই সেটা স্বীকার করছে:
+data source page-এ লেখা **"Provisioned data source — added by config and cannot be
+modified using the UI"**, আর নিচে **"Successfully queried the Prometheus API"**
+(`b3-task32-datasource.png`)।
+
+`url: http://prometheus:9090` — compose network-এর service নাম আর container port।
+`localhost:30190` দিলে কাজ করত না, grafana container-এর ভিতরে `localhost` মানে
+grafana নিজে (Task 30-এর একই শিক্ষা)।
+
+**৯টা panel, একটা আরেকটার প্রশ্নের উত্তর দেয়:**
+
+| Panel | কী বলে |
+|---|---|
+| `up{job="notes-api"}` + `scrape_duration_seconds` | data-টা আদৌ বিশ্বাসযোগ্য কিনা |
+| Request rate by route | কত চাপ আসছে |
+| p95 latency by route | কোথায় ধীর |
+| `db_queries_per_request` | **কেন** ধীর — N+1 কিনা |
+| DB query rate by `query_name` | **কোন** query বেশি চলছে |
+| p95 DB query time by `query_name` | কোন query নিজেই ধীর |
+| 5xx rate | ভাঙছে কিনা |
+
+Load চলাকালীন screenshot নেওয়া হয়েছে (`b3-task32-dashboard.png`), তাই graph-এ
+সত্যিকারের data — request rate ৬ req/s-এ উঠেছে, p95 প্রায় **৮ সেকেন্ড**,
+`db_queries_per_request` লাইন **~২০**-এ সমান, আর `tags_for_note`-এর rate ~২৫/s
+যেখানে `list_notes` প্রায় শূন্যের কাছে। N+1 এখন গ্রাফেই দেখা যায়, কমান্ড না
+চালিয়েও।
+
+5xx panel-এ **"No data"** — এটাই সঠিক, কোনো request fail করেনি। App ধীর, কিন্তু
+ভাঙা না। "ধীর" আর "ভাঙা" আলাদা জিনিস, আর dashboard-এ দুইটা আলাদা panel লাগে।
