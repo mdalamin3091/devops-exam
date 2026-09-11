@@ -1,0 +1,58 @@
+services:
+  app:
+    image: ghcr.io/mdalamin3091/notes-api:v1
+    ports:
+      - "30104:3000"
+    environment:
+      PORT: 3000
+      APP_VERSION: v1
+      PGHOST: postgres
+      PGUSER: notes
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: notesdb
+    networks:
+      - notesnet
+    deploy:
+      replicas: 3
+      placement:
+        max_replicas_per_node: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: notesdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - notesnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notesdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+networks:
+  notesnet:
+    driver: overlay
+
+volumes:
+  pgdata:
