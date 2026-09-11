@@ -1,0 +1,81 @@
+# EXAM TOKEN: alamin-vmi3536696-1788528499-d41f1787
+# Md. Al amin — PR pipeline: test -> build -> image sotti chale kina
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1) Code nao
+        uses: actions/checkout@v4
+
+      - name: 2) Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: scenario-b/app/package-lock.json
+
+      - name: 3) Dependency install
+        working-directory: scenario-b/app
+        run: npm ci
+
+      - name: 4) Unit test (4 ta)
+        working-directory: scenario-b/app
+        run: npm test
+
+      - name: 5) Image build
+        run: |
+          docker build \
+            -f scenario-b/docker/Dockerfile \
+            -t notes-api:pr-${{ github.sha }} \
+            scenario-b/app
+
+      - name: 6) Image ta sotti chale kina — postgres + app + curl
+        run: |
+          set -euo pipefail
+
+          docker network create ci_net_alamin
+
+          docker run -d --name ci_pg --network ci_net_alamin \
+            -e POSTGRES_USER=notes \
+            -e POSTGRES_PASSWORD=ci_only_not_a_real_secret \
+            -e POSTGRES_DB=notesdb \
+            postgres:16-alpine
+
+          echo "postgres ready howar opekkha..."
+          for i in $(seq 1 30); do
+            docker exec ci_pg pg_isready -U notes -d notesdb >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+          docker run -d --name ci_app --network ci_net_alamin -p 3000:3000 \
+            -e PGHOST=ci_pg \
+            -e PGUSER=notes \
+            -e PGPASSWORD=ci_only_not_a_real_secret \
+            -e PGDATABASE=notesdb \
+            notes-api:pr-${{ github.sha }}
+
+          echo "/healthz er opekkha..."
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/healthz; then
+              echo ""
+              echo "✅ image sotti chalche"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "❌ app kokhono healthy holo na — log:"
+          docker logs ci_app
+          exit 1
+
+      - name: 7) Porishkar (fail holeo chalbe)
+        if: always()
+        run: |
+          docker rm -f ci_app ci_pg >/dev/null 2>&1 || true
+          docker network rm ci_net_alamin >/dev/null 2>&1 || true
