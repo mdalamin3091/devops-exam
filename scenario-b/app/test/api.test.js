@@ -7,7 +7,7 @@ const app = require('../src/server');
 test('GET /healthz -> 200 ok', async () => {
   const r = await request(app).get('/healthz');
   assert.strictEqual(r.status, 200);
-  assert.strictEqual(r.status, 500);
+  assert.strictEqual(r.text, "ok");
 });
 
 test('GET / -> app name আর version দেয়', async () => {
