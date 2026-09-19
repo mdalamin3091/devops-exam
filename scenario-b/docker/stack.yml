@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/mdalamin3091/notes-api:v1
+    image: docker.io/mdalamin3091/notes-api:v1
     ports:
       - "30104:3000"
     environment:

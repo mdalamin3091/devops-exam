@@ -109,4 +109,4 @@ screenshot, so every image in `evidence/` can be traced back to what I typed.
 | app backend 1 / 2 | ports 30101 / 30102 (local only, firewall closed) |
 | Prometheus | `http://169.58.246.108:30190` |
 | Grafana | `http://169.58.246.108:30191` |
-| Container image | `ghcr.io/mdalamin3091/notes-api` |
+| Container image | `docker.io/mdalamin3091/notes-api` |
