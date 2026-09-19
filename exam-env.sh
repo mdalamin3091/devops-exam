@@ -11,18 +11,17 @@ N=1
 
 # ------------- নিচের কিছু হাত দিও না -------------
 PORT_BASE=$(( 30000 + N * 100 ))
-APP1_PORT=$(( PORT_BASE + 1 ))     # backend 1   (exam-এ 3001)
-APP2_PORT=$(( PORT_BASE + 2 ))     # backend 2   (exam-এ 3002)
-NGINX_PORT=$(( PORT_BASE + 80 ))   # nginx       (exam-এ 80)
-MYSTERY_PORT=$(( PORT_BASE + 8 ))  # A2 root process (exam-এ 8080)
-USERPORT=$(( PORT_BASE + 9 ))      # A2 normal user process (exam-এ 9090)
+APP1_PORT=$(( PORT_BASE + 1 ))     # backend 1   
+APP2_PORT=$(( PORT_BASE + 2 ))     # backend 2   
+NGINX_PORT=$(( PORT_BASE + 80 ))   # nginx       
+USERPORT=$(( PORT_BASE + 9 ))      # A2 normal user process 
 
 # --- Scenario B (docker) ---
-APP_PORT=$(( PORT_BASE + 3 ))      # compose app   (exam-এ 3000)
-SWARM_PORT=$(( PORT_BASE + 4 ))    # swarm stack   (আলাদা রাখতেই হবে, routing mesh পুরো host দখল করে)
-PG_PORT=$(( PORT_BASE + 5 ))       # postgres      (exam-এ 5432)
-PROM_PORT=$(( PORT_BASE + 90 ))    # prometheus    (exam-এ 9090)
-GRAF_PORT=$(( PORT_BASE + 91 ))    # grafana       (exam-এ 3001)
+APP_PORT=$(( PORT_BASE + 3 ))      # compose app   
+SWARM_PORT=$(( PORT_BASE + 4 ))    # swarm stack  
+PG_PORT=$(( PORT_BASE + 5 ))       # postgres      
+PROM_PORT=$(( PORT_BASE + 90 ))    # prometheus    
+GRAF_PORT=$(( PORT_BASE + 91 ))    # grafana       
 
 COMPOSE_PROJECT_NAME="notes_${PFX}"   # container/network/volume সব এই নামে হবে
 IMAGE="notes-api_${PFX}"              # local image নাম

@@ -278,11 +278,3 @@ Fail করিয়েছি ইচ্ছা করে — `/healthz` test-এ 
 (`AssertionError: 200 !== 500`), আর **build step চালুই হয়নি** — step গুলো
 ক্রমানুসারে চলে, তাই খারাপ code থেকে image তৈরিই হলো না। Assertion ফিরিয়ে দিয়ে
 push করার পর সব step সবুজ (`b5-task41-failed-run.png`, `b5-task41-passed-run.png`)।
-
-**Image চালিয়ে curl করার step-টা আলাদা করে কেন দরকার:** build হওয়া মানে শুধু
-"বানানো গেছে", চলবে কিনা বলে না। আমার নিজের app-এই এর প্রমাণ আছে — `server.js`
-startup-এ `SELECT 1` চালায়, DB না পেলে `process.exit(1)`। তাই image একদম ঠিক
-থাকলেও container সাথে সাথে মরে যেত, আর build test সেটা কখনো ধরত না। এই জন্য CI-তে
-postgres container তুলে, `pg_isready` দিয়ে অপেক্ষা করে, তারপর app চালিয়ে
-`curl -fsS /healthz` করেছি। `-f` না দিলে curl 500-কেও success ধরত, pipeline মিথ্যা
-সবুজ হত।
