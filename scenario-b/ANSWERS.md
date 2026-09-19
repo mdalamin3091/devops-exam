@@ -278,3 +278,35 @@ Fail করিয়েছি ইচ্ছা করে — `/healthz` test-এ 
 (`AssertionError: 200 !== 500`), আর **build step চালুই হয়নি** — step গুলো
 ক্রমানুসারে চলে, তাই খারাপ code থেকে image তৈরিই হলো না। Assertion ফিরিয়ে দিয়ে
 push করার পর সব step সবুজ (`b5-task41-failed-run.png`, `b5-task41-passed-run.png`)।
+## Task 42 — Caching
+
+দুই জায়গায় cache বসিয়েছি, দুইটা আলাদা জিনিস বাঁচায়:
+
+| কী | কোথায় | কী বাঁচায় |
+|---|---|---|
+| npm package | `actions/setup-node` এর `cache: npm` | runner-এ `npm ci` এর download |
+| docker layer | buildx `--cache-from type=gha --cache-to type=gha,mode=max` | image-এর **ভিতরে** `npm ci` আবার চালানো |
+
+`setup-node`-এর cache runner-এর `~/.npm` রাখে, ওটা docker build-এর ভিতরে যায় না —
+তাই দুইটাই লাগে।
+
+**Run #5 ("trivial change, warm run") — job `test-and-smoke` সফল, 39s**
+(`b5-task42-cache-hit.png`)। Build step `5b) Image build` = **14s**।
+
+Log-এ cache-এর তার দুইটা লাইনেই দেখা যায়:
+- `#5 importing cache manifest from gha:12260363819460975338` → `cache-from` কাজ করছে
+- `#20 exporting to GitHub Actions Cache ... sending cache export 4.1s done`,
+  `#20 DONE 4.6s` → `cache-to` কাজ করছে
+
+**তবে এই run-এ আসলে hit হয়নি** — সৎভাবে লিখছি:
+- `setup-node` বলেছে `npm cache is not found` (npm cache miss)
+- `#10 [build 4/8] RUN npm ci` → `DONE 1.9s` — `CACHED` লেখা নাই, মানে layer-টা
+  আবার চলেছে
+
+কারণ: Task 41-এর pr.yml plain `docker build` দিয়ে build করত, কোনো cache export
+করত না। তাই buildx-এর প্রথম run-টাই (এই run) cache **তৈরি** করেছে, ব্যবহার করতে
+পারেনি। Cache এখন লেখা হয়ে গেছে, তাই পরের run-টাই আসল warm run —
+সেখানে `CACHED [build 4/6] RUN npm ci` আর `Cache restored from key:` আসার কথা।
+
+**বাকি আছে:** Actions run list-এর screenshot যেখানে cold আর warm দুইটার duration
+পাশাপাশি দেখা যায়, আর তখন শতকরা কত কমল সেই সংখ্যা।
