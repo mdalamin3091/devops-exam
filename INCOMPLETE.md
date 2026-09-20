@@ -8,8 +8,8 @@
 ## Scenario A
 | Task | অবস্থা | আমি যতটুকু বুঝেছি |
 |---|---|---|
-| **10** | করিনি | `<এক লাইন>` |
-| **11** | করিনি | `<এক লাইন>` |
+| **10** — ইচ্ছা করে ভাঙা | করিনি | নাই এমন config path দিলে script-এর `exit=2` আসত (ফাইল পড়তেই পারেনি, check fail না), আর `checks.conf`-এ মৃত URL রাখলে `curl` HTTP code হিসেবে `000` দিত — `--max-time 3` দেওয়া আছে বলে DNS fail-এ script ঝুলে না থেকে ৩ সেকেন্ডে `[FAIL] bad -> got 000` দিয়ে বেরিয়ে আসত |
+| **11** — cron | করিনি | `crontab -e`-তে `*/5 * * * * /home/alamin/bin/healthcheck.sh /home/alamin/checks.conf >> /var/log/healthcheck_alamin.log 2>&1` বসিয়ে ১০-১২ মিনিট অপেক্ষা করলে আলাদা সময়ের অন্তত দুইটা log line জমত; cron-এর PATH খুব ছোট আর `$HOME` ধরে নেওয়া যায় না, তাই script আর config দুইটারই পুরো absolute path দিতে হত |
 
 > বাকি সব task করা — 8, 18, 19, 20 সহ উত্তর `scenario-a/ANSWERS.md`-এ আছে।
 
